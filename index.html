@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Educational SLAM & LiDAR Simulator</title>
+  <!-- Use Google Fonts for a modern, sleek aesthetic -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <!-- Chart.js for Live Data -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+  <div id="app">
+    <!-- Sidebar Control Panel -->
+    <aside class="sidebar">
+      <header>
+        <h1>SLAM Simulator</h1>
+        <p class="subtitle">Interactive Robotics Education</p>
+      </header>
+
+      <section class="controls">
+        <div class="control-group">
+          <label for="noiseSlider">LiDAR Sensor Noise</label>
+          <input type="range" id="noiseSlider" min="0" max="20" value="2" step="1">
+          <span id="noiseValue" class="value-display">2%</span>
+        </div>
+
+        <div class="control-group">
+          <label for="speedSlider">Robot Speed</label>
+          <input type="range" id="speedSlider" min="1" max="10" value="5" step="1">
+          <span id="speedValue" class="value-display">5x</span>
+        </div>
+
+        <div class="control-group">
+          <label for="rayDensitySlider">LiDAR Ray Density</label>
+          <input type="range" id="rayDensitySlider" min="30" max="360" value="90" step="10">
+          <span id="rayDensityValue" class="value-display">90 Rays</span>
+        </div>
+      </section>
+
+      <section class="views">
+        <h3>Interaction Mode</h3>
+        <div class="button-group">
+          <button id="btnDriveMode" class="active">Drive Mode</button>
+          <button id="btnBuildMode">Build Mode</button>
+        </div>
+      </section>
+
+      <section class="views">
+        <h3>Viewport Toggle</h3>
+        <div class="button-group">
+          <button id="btnRealWorld" class="active">Real World</button>
+          <button id="btnSlamMap">SLAM Map</button>
+        </div>
+      </section>
+
+      <section class="instructions" id="instructionsDrive">
+        <h3>Controls</h3>
+        <p><kbd>W</kbd> Move Forward</p>
+        <p><kbd>S</kbd> Move Backward</p>
+        <p><kbd>A</kbd> Rotate Left</p>
+        <p><kbd>D</kbd> Rotate Right</p>
+        <p>Click on SLAM Map to Auto-Navigate</p>
+      </section>
+
+      <section class="instructions hidden" id="instructionsBuild">
+        <h3>Build Controls</h3>
+        <p>Click and Drag on Real World to draw custom walls.</p>
+      </section>
+
+      <section class="chart-container">
+        <h3>Live Sensor Data</h3>
+        <div class="chart-wrapper">
+          <canvas id="lidarChart"></canvas>
+        </div>
+      </section>
+
+      <footer>
+        <button id="btnReset" class="danger-btn" style="margin-bottom: 0.5rem;">Reset Random Map</button>
+        <button id="btnClearCustom" class="danger-btn">Clear Custom Walls</button>
+      </footer>
+    </aside>
+
+    <!-- Main Canvas Area -->
+    <main class="canvas-container">
+      <!-- Canvas for the 'Real World' view -->
+      <canvas id="realWorldCanvas"></canvas>
+      <!-- Canvas for the generated Occupancy Grid view (hidden by default initially) -->
+      <canvas id="slamCanvas" class="hidden"></canvas>
+    </main>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+
+</html>
