@@ -33,11 +33,10 @@ export class Renderer {
     }
 
     clear() {
-        this.realWorldCtx.fillStyle = '#0f1115'; // Dark background
+        this.realWorldCtx.fillStyle = '#0f1115';
         this.realWorldCtx.fillRect(0, 0, this.realWorldCanvas.width, this.realWorldCanvas.height);
 
-        // SLAM canvas uses a grey "unknown" background initially
-        this.slamCtx.fillStyle = '#1e293b'; // Slate grey for unknown
+        this.slamCtx.fillStyle = '#1e293b';
         this.slamCtx.fillRect(0, 0, this.slamCanvas.width, this.slamCanvas.height);
     }
 
@@ -51,18 +50,51 @@ export class Renderer {
         // Draw robot body
         ctx.beginPath();
         ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#3b82f6'; // Tech Blue
+        ctx.fillStyle = '#3b82f6';
         ctx.fill();
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#60a5fa';
         ctx.stroke();
 
-        // Draw heading indicator (a line pointing forward)
+        // Draw heading indicator
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(radius + 10, 0);
-        ctx.strokeStyle = '#ef4444'; // Red heading line
+        ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    /**
+     * Draw a ghost robot at the believed position (shown only when drift is active).
+     */
+    drawBelievedRobot(robot, ctx) {
+        if (robot.driftAmount === 0) return;
+
+        const { believedX, believedY, believedTheta, radius } = robot;
+
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.translate(believedX, believedY);
+        ctx.rotate(believedTheta);
+
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(radius + 10, 0);
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
         ctx.stroke();
 
         ctx.restore();
@@ -70,7 +102,7 @@ export class Renderer {
 
     drawEnvironment(env, ctx = this.realWorldCtx) {
         ctx.save();
-        ctx.strokeStyle = '#e2e8f0'; // White border color
+        ctx.strokeStyle = '#e2e8f0';
         ctx.lineWidth = 4;
         ctx.lineCap = 'round';
 
@@ -93,9 +125,9 @@ export class Renderer {
         for (let i = 1; i < path.length; i++) {
             ctx.lineTo(path[i].x, path[i].y);
         }
-        ctx.strokeStyle = '#10b981'; // Success Green for the path
+        ctx.strokeStyle = '#10b981';
         ctx.lineWidth = 3;
-        ctx.setLineDash([10, 10]); // Dashed line
+        ctx.setLineDash([10, 10]);
         ctx.stroke();
 
         // Draw target marker at end
@@ -107,13 +139,42 @@ export class Renderer {
         ctx.restore();
     }
 
+    /**
+     * Draw the robot's trajectory trail with a fading effect.
+     * @param {Array} trail    - Array of {x, y} points
+     * @param {string} color   - CSS color for the trail
+     * @param {CanvasRenderingContext2D} ctx
+     */
+    drawTrail(trail, color, ctx) {
+        if (!trail || trail.length < 2) return;
+
+        ctx.save();
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const len = trail.length;
+        for (let i = 1; i < len; i++) {
+            // Fade: older points are more transparent
+            const alpha = (i / len) * 0.7;
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+            ctx.lineTo(trail[i].x, trail[i].y);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
     drawBuildLine(start, end, ctx = this.realWorldCtx) {
         if (!start || !end) return;
         ctx.save();
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
-        ctx.strokeStyle = '#f59e0b'; // Amber color for drawing mode
+        ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 4;
         ctx.lineCap = 'round';
         ctx.setLineDash([15, 10]);
@@ -121,14 +182,37 @@ export class Renderer {
         ctx.restore();
     }
 
+    /**
+     * Draw frontier target marker on the SLAM map.
+     */
+    drawFrontierTarget(target, ctx = this.slamCtx) {
+        if (!target) return;
+        ctx.save();
+
+        // Pulsing ring effect
+        const time = performance.now() / 500;
+        const pulseRadius = 10 + Math.sin(time) * 4;
+
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, pulseRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
+        ctx.stroke();
+
+        // Inner dot
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fill();
+
+        ctx.restore();
+    }
+
     // ──────────────────────────────────────────
     //  Fog of War
     // ──────────────────────────────────────────
 
-    /**
-     * Lazily create (or recreate) the persistent off-screen fog canvas.
-     * Must be called once after the slam canvas has its final dimensions.
-     */
     initFogCanvas(width, height) {
         this.fogCanvas = document.createElement('canvas');
         this.fogCanvas.width = width;
@@ -137,7 +221,6 @@ export class Renderer {
         this.resetFog();
     }
 
-    /** Fill fog canvas completely opaque (call on map reset). */
     resetFog() {
         if (!this.fogCtx) return;
         this.fogCtx.globalCompositeOperation = 'source-over';
@@ -145,10 +228,6 @@ export class Renderer {
         this.fogCtx.fillRect(0, 0, this.fogCanvas.width, this.fogCanvas.height);
     }
 
-    /**
-     * Permanently punch through the fog where the LiDAR swept this frame.
-     * Uses destination-out compositing so erased pixels stay erased.
-     */
     drawFogOfWar(scanHits, robot) {
         if (!this.fogCtx || scanHits.length === 0) return;
 
@@ -156,7 +235,6 @@ export class Renderer {
         ctx.save();
         ctx.globalCompositeOperation = 'destination-out';
 
-        // Build the visibility polygon: robot centre → each hit point
         ctx.beginPath();
         ctx.moveTo(robot.x, robot.y);
         for (const hit of scanHits) {
@@ -164,7 +242,6 @@ export class Renderer {
         }
         ctx.closePath();
 
-        // Soft radial gradient so the boundary melts away rather than hard-clipping
         const maxRange = 600;
         const gradient = ctx.createRadialGradient(
             robot.x, robot.y, 0,
@@ -180,10 +257,6 @@ export class Renderer {
         ctx.restore();
     }
 
-    /**
-     * Composite the persistent fog layer on top of whatever is on the SLAM canvas.
-     * Call this AFTER drawing the occupancy grid and path, but BEFORE drawing the robot.
-     */
     drawFogOverlay(ctx = this.slamCtx) {
         if (!this.fogCanvas) return;
         ctx.drawImage(this.fogCanvas, 0, 0);

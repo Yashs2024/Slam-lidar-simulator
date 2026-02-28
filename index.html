@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Educational SLAM & LiDAR Simulator</title>
+  <meta name="description" content="Interactive browser-based SLAM & LiDAR simulator for robotics education. Features autonomous frontier exploration, A* pathfinding, occupancy grid mapping, and real-time sensor visualization." />
   <!-- Use Google Fonts for a modern, sleek aesthetic -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <!-- Chart.js for Live Data -->
@@ -20,6 +21,29 @@
         <h1>SLAM Simulator</h1>
         <p class="subtitle">Interactive Robotics Education</p>
       </header>
+
+      <!-- Performance Stats Dashboard -->
+      <section class="stats-dashboard">
+        <h3>Performance Stats</h3>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Explored</span>
+            <span class="stat-value" id="statExplored">0%</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Distance</span>
+            <span class="stat-value" id="statDistance">0m</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Collisions</span>
+            <span class="stat-value" id="statCollisions">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Time</span>
+            <span class="stat-value" id="statTime">0:00</span>
+          </div>
+        </div>
+      </section>
 
       <section class="controls">
         <div class="control-group">
@@ -39,6 +63,12 @@
           <input type="range" id="rayDensitySlider" min="30" max="360" value="90" step="10">
           <span id="rayDensityValue" class="value-display">90 Rays</span>
         </div>
+
+        <div class="control-group">
+          <label for="driftSlider">Odometry Drift</label>
+          <input type="range" id="driftSlider" min="0" max="10" value="0" step="1">
+          <span id="driftValue" class="value-display">Off</span>
+        </div>
       </section>
 
       <section class="views">
@@ -47,6 +77,7 @@
           <button id="btnDriveMode" class="active">Drive Mode</button>
           <button id="btnBuildMode">Build Mode</button>
         </div>
+        <button id="btnAutoExplore" class="auto-explore-btn">🧭 Auto Explore</button>
       </section>
 
       <section class="views">
@@ -78,8 +109,26 @@
         </div>
       </section>
 
+      <!-- Environment Presets & Map Tools -->
+      <section class="map-tools">
+        <h3>Environment Presets</h3>
+        <select id="presetSelect" class="preset-select">
+          <option value="random">🎲 Random</option>
+          <option value="maze">🏗️ Maze</option>
+          <option value="warehouse">📦 Warehouse</option>
+          <option value="office">🏢 Office</option>
+          <option value="lshape">↰ L-Shape</option>
+          <option value="open">🏜️ Open Field</option>
+        </select>
+        <div class="map-buttons">
+          <button id="btnExportMap" class="tool-btn">📤 Export Map</button>
+          <button id="btnImportMap" class="tool-btn">📥 Import Map</button>
+          <input type="file" id="importFileInput" accept=".json" style="display:none;" />
+        </div>
+      </section>
+
       <footer>
-        <button id="btnReset" class="danger-btn" style="margin-bottom: 0.5rem;">Reset Random Map</button>
+        <button id="btnReset" class="danger-btn" style="margin-bottom: 0.5rem;">Reset Map</button>
         <button id="btnClearCustom" class="danger-btn">Clear Custom Walls</button>
       </footer>
     </aside>

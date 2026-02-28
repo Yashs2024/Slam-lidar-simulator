@@ -1,9 +1,14 @@
 export class Robot {
     constructor(x, y) {
-        // Pose Configuration
+        // True Pose (ground truth)
         this.x = x;
         this.y = y;
-        this.theta = 0; // Standard math coordinate (0 = pointing right)
+        this.theta = 0;
+
+        // Believed Pose (with odometry drift)
+        this.believedX = x;
+        this.believedY = y;
+        this.believedTheta = 0;
 
         // Robot physical characteristics
         this.radius = 20;
@@ -14,10 +19,29 @@ export class Robot {
 
         // Tunable Max Values
         this.maxSpeed = 5;
-        this.maxTurn = 0.05; // radians per frame
+        this.maxTurn = 0.05;
+
         // Path following state
         this.path = null;
         this.pathIndex = 0;
+
+        // Odometry drift amount (0 = perfect, higher = more drift)
+        this.driftAmount = 0;
+
+        // Trajectory trail history
+        this.trueTrail = [];
+        this.believedTrail = [];
+        this.maxTrailLength = 800;
+        this._trailCounter = 0;
+    }
+
+    setDrift(amount) {
+        this.driftAmount = amount;
+    }
+
+    resetTrails() {
+        this.trueTrail = [];
+        this.believedTrail = [];
     }
 
     setPath(path) {
@@ -36,7 +60,7 @@ export class Robot {
         const dy = target.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance < 15) { // Reached waypoint
+        if (distance < 15) {
             this.pathIndex++;
             if (this.pathIndex >= this.path.length) {
                 this.path = null;
@@ -48,19 +72,16 @@ export class Robot {
 
         const targetTheta = Math.atan2(dy, dx);
 
-        // Compute shortest angle difference
         let angleDiff = targetTheta - this.theta;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-        // Proportional steering
         this.turnSpeed = Math.max(-this.maxTurn, Math.min(this.maxTurn, angleDiff * 0.1));
 
-        // Speed control: slow down if turning sharply
         if (Math.abs(angleDiff) > 0.5) {
-            this.forwardSpeed = 0; // Turn in place
+            this.forwardSpeed = 0;
         } else {
-            this.forwardSpeed = this.maxSpeed * 0.8; // Drive slightly slower than manual max
+            this.forwardSpeed = this.maxSpeed * 0.8;
         }
     }
 
@@ -75,7 +96,7 @@ export class Robot {
         let nextX = this.x + Math.cos(this.theta) * this.forwardSpeed;
         let nextY = this.y + Math.sin(this.theta) * this.forwardSpeed;
 
-        // Collision Detection: Check if the robot's bounding circle intersects any wall
+        // Collision Detection
         let hitWall = false;
 
         if (environment) {
@@ -92,11 +113,53 @@ export class Robot {
             this.x = nextX;
             this.y = nextY;
         }
+
+        // Update believed pose with drift
+        this._updateBelievedPose(hitWall);
+
+        // Record trail (every 3 frames to save memory)
+        this._trailCounter++;
+        if (this._trailCounter % 3 === 0) {
+            this.trueTrail.push({ x: this.x, y: this.y });
+            this.believedTrail.push({ x: this.believedX, y: this.believedY });
+
+            if (this.trueTrail.length > this.maxTrailLength) {
+                this.trueTrail.shift();
+                this.believedTrail.shift();
+            }
+        }
+
+        return hitWall;
+    }
+
+    _updateBelievedPose(hitWall) {
+        if (this.driftAmount === 0) {
+            // Perfect odometry
+            this.believedX = this.x;
+            this.believedY = this.y;
+            this.believedTheta = this.theta;
+            return;
+        }
+
+        // Apply the same motion with added noise
+        const driftScale = this.driftAmount * 0.002;
+
+        // Noisy turn
+        const turnNoise = (Math.random() - 0.5) * driftScale * 2;
+        this.believedTheta += this.turnSpeed + turnNoise;
+
+        // Noisy forward movement
+        const speedNoise = (Math.random() - 0.5) * driftScale * this.forwardSpeed * 3;
+        const angleNoise = (Math.random() - 0.5) * driftScale * 0.5;
+
+        if (!hitWall) {
+            this.believedX += Math.cos(this.believedTheta + angleNoise) * (this.forwardSpeed + speedNoise);
+            this.believedY += Math.sin(this.believedTheta + angleNoise) * (this.forwardSpeed + speedNoise);
+        }
     }
 
     // Helper: Circle-Line segment intersection
     circleLineIntersect(cx, cy, r, p1, p2) {
-        // Find the closest point on the line segment to the circle's center
         let dx = p2.x - p1.x;
         let dy = p2.y - p1.y;
 
@@ -104,16 +167,13 @@ export class Robot {
         let t = 0;
 
         if (lenSq !== 0) {
-            // Project point onto line segment and clamp to [0, 1]
             t = ((cx - p1.x) * dx + (cy - p1.y) * dy) / lenSq;
             t = Math.max(0, Math.min(1, t));
         }
 
-        // Find the closest point
         let closestX = p1.x + t * dx;
         let closestY = p1.y + t * dy;
 
-        // Check if distance from closest point to circle center is less than radius
         let distX = cx - closestX;
         let distY = cy - closestY;
 
@@ -129,7 +189,7 @@ export class Robot {
         const isManual = keys['w'] || keys['s'] || keys['a'] || keys['d'];
 
         if (isManual) {
-            this.path = null; // Override autonomous mode
+            this.path = null;
         }
 
         if (isManual || !this.path) {
