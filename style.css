@@ -215,6 +215,34 @@ section h3 {
   box-shadow: 0 0 16px rgba(245, 158, 11, 0.3);
 }
 
+/* ── Dynamic Obstacles Button ── */
+.dynamic-obs-btn {
+  width: 100%;
+  padding: 0.65rem;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(168, 85, 247, 0.05));
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.dynamic-obs-btn:hover {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(168, 85, 247, 0.1));
+  border-color: #a855f7;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.15);
+}
+
+.dynamic-obs-btn.active {
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  color: #fff;
+  border-color: #a855f7;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.3);
+}
+
 /* ── Instructions ── */
 .instructions p {
   font-size: 0.85rem;

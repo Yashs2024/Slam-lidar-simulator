@@ -7,6 +7,8 @@ import { AStar } from './AStar.js';
 import { ChartManager } from './ChartManager.js';
 import { FrontierExplorer } from './FrontierExplorer.js';
 import { StatsTracker } from './StatsTracker.js';
+import { DynamicObstacles } from './DynamicObstacles.js';
+import { SoundManager } from './SoundManager.js';
 
 // ---- Application State ----
 const keys = { w: false, a: false, s: false, d: false };
@@ -20,6 +22,12 @@ let isBuilding = false;
 let buildStart = null;
 let buildCurrent = null;
 
+// Track previous path state for goal-reached detection
+let prevPathActive = false;
+
+// LiDAR sweep sound throttle
+let sweepSoundCounter = 0;
+
 // ---- Core Components ----
 const renderer = new Renderer();
 const environment = new Environment(renderer.realWorldCanvas.width, renderer.realWorldCanvas.height);
@@ -30,6 +38,8 @@ const astar = new AStar(mapper);
 const chartManager = new ChartManager('lidarChart', lidar.maxRange);
 const frontierExplorer = new FrontierExplorer(mapper);
 const statsTracker = new StatsTracker();
+const dynamicObstacles = new DynamicObstacles(renderer.realWorldCanvas.width, renderer.realWorldCanvas.height);
+const soundManager = new SoundManager();
 
 // Initialise the Fog of War canvas
 renderer.initFogCanvas(renderer.slamCanvas.width, renderer.slamCanvas.height);
@@ -46,12 +56,18 @@ const rayDensitySlider = document.getElementById('rayDensitySlider');
 const rayDensityValue = document.getElementById('rayDensityValue');
 const driftSlider = document.getElementById('driftSlider');
 const driftValue = document.getElementById('driftValue');
+const volumeSlider = document.getElementById('volumeSlider');
+const volumeValue = document.getElementById('volumeValue');
+const volumeGroup = document.getElementById('volumeGroup');
 
 const btnRealWorld = document.getElementById('btnRealWorld');
 const btnSlamMap = document.getElementById('btnSlamMap');
 const btnDriveMode = document.getElementById('btnDriveMode');
 const btnBuildMode = document.getElementById('btnBuildMode');
 const btnAutoExplore = document.getElementById('btnAutoExplore');
+const btnDynamicObs = document.getElementById('btnDynamicObs');
+const btnSoundOff = document.getElementById('btnSoundOff');
+const btnSoundOn = document.getElementById('btnSoundOn');
 
 const btnReset = document.getElementById('btnReset');
 const btnClearCustom = document.getElementById('btnClearCustom');
@@ -84,6 +100,10 @@ function resetSimulation() {
   autoExploreActive = false;
   btnAutoExplore.classList.remove('active');
   btnAutoExplore.textContent = '🧭 Auto Explore';
+  prevPathActive = false;
+
+  // Regenerate dynamic obstacles for the new map
+  dynamicObstacles.generate();
 }
 
 
@@ -134,6 +154,12 @@ function setupEventListeners() {
     robot.setDrift(val);
   });
 
+  volumeSlider.addEventListener('input', (e) => {
+    const val = parseInt(e.target.value);
+    volumeValue.textContent = `${val}%`;
+    soundManager.setVolume(val / 100);
+  });
+
   // View Toggles
   btnRealWorld.addEventListener('click', () => {
     currentView = 'realWorld';
@@ -168,7 +194,6 @@ function setupEventListeners() {
     robot.path = null;
     robot.forwardSpeed = 0;
     robot.turnSpeed = 0;
-    // Cancel auto-explore when entering build mode
     autoExploreActive = false;
     btnAutoExplore.classList.remove('active');
     btnAutoExplore.textContent = '🧭 Auto Explore';
@@ -182,7 +207,6 @@ function setupEventListeners() {
     if (autoExploreActive) {
       btnAutoExplore.classList.add('active');
       btnAutoExplore.textContent = '⏹️ Stop Exploring';
-      // Switch to SLAM view so user can see the exploration
       btnSlamMap.click();
       interactionMode = 'drive';
       btnDriveMode.classList.add('active');
@@ -197,6 +221,36 @@ function setupEventListeners() {
       robot.turnSpeed = 0;
       frontierTarget = null;
     }
+  });
+
+  // Dynamic Obstacles Toggle
+  btnDynamicObs.addEventListener('click', () => {
+    const nowEnabled = !dynamicObstacles.enabled;
+    dynamicObstacles.setEnabled(nowEnabled);
+    if (nowEnabled) {
+      btnDynamicObs.classList.add('active');
+      btnDynamicObs.textContent = '⏹️ Stop Obstacles';
+      dynamicObstacles.generate();
+    } else {
+      btnDynamicObs.classList.remove('active');
+      btnDynamicObs.textContent = '🔮 Dynamic Obstacles';
+      environment.setDynamicWalls([]);
+    }
+  });
+
+  // Sound Toggle
+  btnSoundOn.addEventListener('click', () => {
+    soundManager.setEnabled(true);
+    btnSoundOn.classList.add('active');
+    btnSoundOff.classList.remove('active');
+    volumeGroup.style.display = 'flex';
+  });
+
+  btnSoundOff.addEventListener('click', () => {
+    soundManager.setEnabled(false);
+    btnSoundOff.classList.add('active');
+    btnSoundOn.classList.remove('active');
+    volumeGroup.style.display = 'none';
   });
 
   // Reset Map
@@ -248,11 +302,10 @@ function setupEventListeners() {
       const success = environment.importWalls(evt.target.result);
       if (success) {
         resetSimulation();
-        presetSelect.value = 'random'; // Clear preset selection
+        presetSelect.value = 'random';
       }
     };
     reader.readAsText(file);
-    // Reset file input so same file can be re-imported
     importFileInput.value = '';
   });
 
@@ -267,7 +320,6 @@ function setupEventListeners() {
     const path = astar.findPath(robot.x, robot.y, x, y);
     if (path.length > 0) {
       robot.setPath(path);
-      // If user manually clicks, cancel auto-explore
       if (autoExploreActive) {
         autoExploreActive = false;
         btnAutoExplore.classList.remove('active');
@@ -317,10 +369,8 @@ let frontierCooldown = 0;
 function handleFrontierExploration() {
   if (!autoExploreActive) return;
 
-  // Only search for a new frontier when robot has no active path
   if (robot.path && robot.pathIndex < robot.path.length) return;
 
-  // Cooldown to prevent rapid re-pathing (wait ~30 frames between searches)
   frontierCooldown++;
   if (frontierCooldown < 30) return;
   frontierCooldown = 0;
@@ -333,14 +383,14 @@ function handleFrontierExploration() {
     if (path.length > 0) {
       robot.setPath(path);
     } else {
-      // No valid path to this frontier, try again next cycle
-      frontierCooldown = 15; // shorter cooldown for retry
+      frontierCooldown = 15;
     }
   } else {
     // No more frontiers — map fully explored!
     autoExploreActive = false;
     btnAutoExplore.classList.remove('active');
     btnAutoExplore.textContent = '✅ Fully Explored';
+    soundManager.playExplorationComplete();
   }
 }
 
@@ -352,29 +402,53 @@ function animate() {
   // 1. Process Input
   robot.applyInput(keys);
 
-  // 2. Update Physics (returns true if wall collision)
+  // 2. Update Dynamic Obstacles
+  dynamicObstacles.update();
+  environment.setDynamicWalls(dynamicObstacles.getWalls());
+
+  // 3. Update Physics (returns true if wall collision)
   const hitWall = robot.update(environment);
 
-  // 3. Sensor Update (LiDAR Raycasting)
+  // 4. Sound: collision bump
+  if (hitWall) {
+    soundManager.playCollision();
+  }
+
+  // 5. Sensor Update (LiDAR Raycasting)
   const scanHits = lidar.scan(robot, environment);
 
-  // 4. SLAM Mapping
+  // 6. Sound: sweep tick (every 6 frames for subtle effect)
+  sweepSoundCounter++;
+  if (sweepSoundCounter >= 6) {
+    sweepSoundCounter = 0;
+    soundManager.playSweepTick();
+  }
+
+  // 7. SLAM Mapping
   mapper.updateMap(robot, scanHits);
 
-  // 5. Update Live Chart
+  // 8. Update Live Chart
   chartManager.updateData(scanHits);
 
-  // 6. Update Stats
+  // 9. Update Stats
   statsTracker.update(robot, mapper, hitWall);
 
-  // 7. Frontier Exploration
+  // 10. Detect goal reached (path was active, now it's null)
+  const pathActive = !!(robot.path && robot.pathIndex < robot.path.length);
+  if (prevPathActive && !pathActive && !autoExploreActive) {
+    soundManager.playGoalReached();
+  }
+  prevPathActive = pathActive;
+
+  // 11. Frontier Exploration
   handleFrontierExploration();
 
-  // 8. Draw Frame
+  // 12. Draw Frame
   renderer.clear();
 
   if (currentView === 'realWorld') {
     renderer.drawEnvironment(environment, renderer.realWorldCtx);
+    renderer.drawDynamicObstacles(dynamicObstacles, renderer.realWorldCtx);
     lidar.drawRays(scanHits, robot, renderer.realWorldCtx);
     renderer.drawTrail(robot.trueTrail, '#3b82f6', renderer.realWorldCtx);
     renderer.drawPath(robot.path, renderer.realWorldCtx);

@@ -4,7 +4,12 @@ export class Environment {
         this.height = height;
         this.baseWalls = [];
         this.customWalls = [];
+        this.dynamicWalls = []; // Set each frame by DynamicObstacles
         this.generateRandomMap();
+    }
+
+    setDynamicWalls(walls) {
+        this.dynamicWalls = walls;
     }
 
     generateRandomMap() {
@@ -245,6 +250,6 @@ export class Environment {
     }
 
     getWalls() {
-        return this.baseWalls.concat(this.customWalls);
+        return this.baseWalls.concat(this.customWalls, this.dynamicWalls);
     }
 }

@@ -5,7 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Educational SLAM & LiDAR Simulator</title>
-  <meta name="description" content="Interactive browser-based SLAM & LiDAR simulator for robotics education. Features autonomous frontier exploration, A* pathfinding, occupancy grid mapping, and real-time sensor visualization." />
+  <meta name="description"
+    content="Interactive browser-based SLAM & LiDAR simulator for robotics education. Features autonomous frontier exploration, A* pathfinding, occupancy grid mapping, and real-time sensor visualization." />
   <!-- Use Google Fonts for a modern, sleek aesthetic -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <!-- Chart.js for Live Data -->
@@ -78,6 +79,20 @@
           <button id="btnBuildMode">Build Mode</button>
         </div>
         <button id="btnAutoExplore" class="auto-explore-btn">🧭 Auto Explore</button>
+        <button id="btnDynamicObs" class="dynamic-obs-btn">🔮 Dynamic Obstacles</button>
+      </section>
+
+      <section class="views">
+        <h3>Sound Effects</h3>
+        <div class="button-group">
+          <button id="btnSoundOff" class="active">🔇 Off</button>
+          <button id="btnSoundOn">🔊 On</button>
+        </div>
+        <div class="control-group" id="volumeGroup" style="display:none;">
+          <label for="volumeSlider">Volume</label>
+          <input type="range" id="volumeSlider" min="0" max="100" value="30" step="5">
+          <span id="volumeValue" class="value-display">30%</span>
+        </div>
       </section>
 
       <section class="views">

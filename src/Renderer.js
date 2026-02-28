@@ -116,6 +116,35 @@ export class Renderer {
         ctx.restore();
     }
 
+    /**
+     * Draw dynamic/moving obstacles with a distinct pulsing color.
+     */
+    drawDynamicObstacles(dynamicObstacles, ctx = this.realWorldCtx) {
+        if (!dynamicObstacles || !dynamicObstacles.enabled) return;
+
+        const walls = dynamicObstacles.getWalls();
+        if (walls.length === 0) return;
+
+        ctx.save();
+
+        // Pulsing glow effect
+        const pulse = 0.6 + Math.sin(performance.now() / 300) * 0.4;
+        ctx.strokeStyle = `rgba(168, 85, 247, ${pulse})`; // Purple
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = 10;
+
+        for (const wall of walls) {
+            ctx.beginPath();
+            ctx.moveTo(wall.start.x, wall.start.y);
+            ctx.lineTo(wall.end.x, wall.end.y);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
     drawPath(path, ctx = this.slamCtx) {
         if (!path || path.length === 0) return;
 
